@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "highlight-narrator-ai"
-  }
+    "default": "highlight-narrator-ai",
+    "dev": "highlight-narrator-ai",
+    "prod": "highlight-narrator-ai"
+  },
+  "targets": {},
+  "etags": {}
 }
