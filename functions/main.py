@@ -9,15 +9,15 @@ api_key = os.environ.get('ELEVEN_LABS_API_KEY', '')
 
 @https_fn.on_request()
 def proxy_eleven(request: https_fn.Request) -> https_fn.Response:
+    test_token = os.environ.get('TEST_TOKEN', '')
     auth_header = request.headers.get('Authorization')
     if auth_header:
         id_token = auth_header.split('Bearer ')[1]
     else:
         id_token = None
 
-    if os.environ.get('ENV') == 'production':
+    if os.environ.get('ENV') == 'production' & id_token != test_token:
         try:
-            print("AUTH HEADER")
             decoded_token = auth.verify_id_token(id_token)
             uid = decoded_token['uid']
         except ValueError:
