@@ -47,24 +47,10 @@ def proxy_eleven(request: https_fn.Request) -> https_fn.Response:
         if request.method == 'GET':
             api_response = requests.get(api_url, headers=headers)
         elif request.method == 'POST':
-            if 'text-to-speech' in request.path:
-                api_response = requests.post(api_url, headers=headers, json=request.get_json(), stream=True)
-
-                if api_response.headers['Content-Type'] == 'audio/mpeg':
-                    with tempfile.NamedTemporaryFile(delete=False) as fp:
-                        for chunk in api_response.iter_content(chunk_size=8192):
-                            if chunk:
-                                fp.write(chunk)
-
-                    with open(fp.name, 'rb') as file:
-                        base64_audio = base64.b64encode(file.read()).decode()
-
-                    response = json.dumps({'audio': base64_audio})
-
-                    return https_fn.Response(response, status=200, headers={'Content-Type': 'application/json'})
-                else:
-                    return https_fn.Response(api_response.text, status=api_response.status_code, headers=api_response.headers.items())
-
+            if all(x in request.path for x in ['text-to-speech', 'stream']):
+                return text_to_speech_stream(api_url, request, headers)
+            elif 'text-to-speech' in request.path:
+                return text_to_speech(api_url, request, headers)
             else:
                 api_response = requests.post(api_url, headers=headers, json=request.get_json())
 
@@ -75,6 +61,45 @@ def proxy_eleven(request: https_fn.Request) -> https_fn.Response:
 
     except requests.RequestException as e:
         print(f"Error calling ElevenLabs API: {str(e)}")
+        return https_fn.Response("Error processing your request.", status=500)
+
+def text_to_speech(api_url: str, request: https_fn.Request, headers: {}) -> https_fn.Response:
+    try: 
+        api_response = requests.post(api_url, headers=headers, json=request.get_json(), stream=True)
+
+        if api_response.headers['Content-Type'] == 'audio/mpeg':
+            with tempfile.NamedTemporaryFile(delete=False) as fp:
+                for chunk in api_response.iter_content(chunk_size=8192):
+                    if chunk:
+                        fp.write(chunk)
+
+            with open(fp.name, 'rb') as file:
+                base64_audio = base64.b64encode(file.read()).decode()
+
+            response = json.dumps({'audio': base64_audio})
+
+            return https_fn.Response(response, status=200, headers={'Content-Type': 'application/json'})
+        else:
+            return https_fn.Response(api_response.text, status=api_response.status_code, headers=api_response.headers.items())
+    except requests.RequestException as e:
+        print(f"Error calling ElevenLabs TTS API: {str(e)}")
+        return https_fn.Response("Error processing your request.", status=500)
+
+def text_to_speech_stream(api_url: str, request: https_fn.Request, headers: {}):
+    try: 
+        api_response = requests.post(api_url, headers=headers, json=request.get_json(), stream=True)
+
+        if api_response.headers['Content-Type'] == 'audio/mpeg':
+            def generate():
+                for chunk in api_response.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield base64.b64encode(chunk).decode()
+
+            return https_fn.Response(generate(), mimetype='application/json')
+        else:
+            return https_fn.Response(api_response.text, status=api_response.status_code, headers=api_response.headers.items())
+    except requests.RequestException as e:
+        print(f"Error calling ElevenLabs TTS API: {str(e)}")
         return https_fn.Response("Error processing your request.", status=500)
 
 def mux_upload(fp) -> https_fn.Response:
@@ -98,3 +123,7 @@ def mux_upload(fp) -> https_fn.Response:
         return https_fn.Response("Error processing your request.", status=500)
     
     return https_fn.Response(streaming_url, status=200)
+
+
+# Todo: add caching using firestor based on voice_id and text
+# Todo: stream response back
