@@ -2,3 +2,4 @@ firebase_functions~=0.1.0
 elevenlabs==0.3.0b0
 requests>=2.25.1
 python-dotenv
+mux-python==3.13.0
